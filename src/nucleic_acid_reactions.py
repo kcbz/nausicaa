@@ -106,6 +106,12 @@ class NucleicAcidReaction:
         )
         return {"pcr_construct": pcr_construct}
 
+    # TODO: Fill this out
+    def _perform_ligation(self):
+        # Implement ligation logic here
+        # Use self.inputs for ligation inputs
+        return {"ligated_sequence": "Simulated ligation output"}
+
     # TODO: confirm structure of the final smrtbell_library_construct 
     def _perform_pacbio_smrtbell_library_prep(self):
         self._validate_pacbio_smrtbell_library_prep()
@@ -121,12 +127,6 @@ class NucleicAcidReaction:
             note="",
         )
         return {"smrtbell_library_construct": smrtbell_library_construct}
-
-    # TODO: Fill this out
-    def _perform_ligation(self):
-        # Implement ligation logic here
-        # Use self.inputs for ligation inputs
-        return {"ligated_sequence": "Simulated ligation output"}
 
     def _validate_pcr(self):
         self._validate_input_keys(["template", "forward_primer", "reverse_primer"])

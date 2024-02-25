@@ -28,6 +28,12 @@ class IUPACCodes(Enum):
     def list_values(cls):
         return [member.value for member in cls]
 
+    @classmethod
+    def get_bases(cls, code):
+    # Get the bases associated with the given IUPAC code.
+    # If the code is not found, return a default color (e.g., black).
+        return cls[code].value if code in cls._member_names_ else None
+
 
 class NucleicAcidTypes(Enum):
     DNA = "DNA"

@@ -1,9 +1,5 @@
 class SequenceAnnotation:
 
-  def __repr__(self):
-    return (f"SequenceAnnotation(name='{self.name}', start={self.start}, "
-            f"end={self.end}, note='{self.note}')")
-
   def __init__(self, parent_nucleic_acid_sequence, name, start, end, note=""):
     self.validate_annotation(parent_nucleic_acid_sequence, name, start, end,
                              note)
@@ -13,6 +9,10 @@ class SequenceAnnotation:
     self._start = start
     self._end = end
     self._note = note
+
+  def __repr__(self):
+    return (f"SequenceAnnotation(name='{self.name}', start={self.start}, "
+            f"end={self.end}, note='{self.note}')")
 
   @property
   def parent_nucleic_acid_sequence_id(self):

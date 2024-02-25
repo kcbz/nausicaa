@@ -6,24 +6,13 @@ from typing import Optional
 
 from src.base_modifications import BaseModification
 from src.nucleic_acids import NucleicAcidSequence, reverse_sequence, complement_sequence
-from src.sequence_annotation import SequenceAnnotation
+from src.sequence_annotations import SequenceAnnotation
 from src.util_classes import IUPACCodes, NucleicAcidTypes, StrandDirections, Colors
 
 logging.basicConfig(level=logging.INFO)
 
 
 class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
-
-    def __repr__(self):
-        return (f"SingleStrandNucleicAcidSequence(id='{self.id}', "
-                f"is_part_of_dsDNA='{self._is_part_of_dsDNA}', "
-                f"sequence='{self.sequence}', "
-                f"nucleic_acid_type='{self.nucleic_acid_type}', "
-                f"circular={self.circular}, "
-                f"strand_direction='{self.strand_direction}', "
-                f"annotations={self.annotations}, "
-                f"base_modifications={self.base_modifications}, "
-                f"note='{self.note}')")
 
     def __init__(
         self,
@@ -53,6 +42,17 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
             self.add_annotations(annotations)
         if base_modifications:
             self.add_base_modifications(base_modifications)
+
+    def __repr__(self):
+        return (f"SingleStrandNucleicAcidSequence(id='{self.id}', "
+                f"is_part_of_dsDNA='{self._is_part_of_dsDNA}', "
+                f"sequence='{self.sequence}', "
+                f"nucleic_acid_type='{self.nucleic_acid_type}', "
+                f"circular={self.circular}, "
+                f"strand_direction='{self.strand_direction}', "
+                f"annotations={self.annotations}, "
+                f"base_modifications={self.base_modifications}, "
+                f"note='{self.note}')")
 
     @property
     def id(self):

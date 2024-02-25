@@ -11,15 +11,6 @@ logging.basicConfig(level=logging.INFO)
 
 class DoubleStrandNucleicAcidSequence(NucleicAcidSequence):
 
-    def __repr__(self):
-        return (f"DoubleStrandNucleicAcidSequence(id='{self.id}', "
-                f"forward_sequence='{self.forward_sequence}', "
-                f"reverse_sequence='{self.reverse_sequence}', "
-                f"reverse_sequence_start='{self.reverse_sequence_start}', "
-                f"nucleic_acid_type='{self.nucleic_acid_type}', "
-                f"circular={self.circular}, "
-                f"note='{self.note}')")
-
     def __init__(
         self,
         forward_sequence,
@@ -42,6 +33,15 @@ class DoubleStrandNucleicAcidSequence(NucleicAcidSequence):
                                                                           reverse_sequence_start,
                                                                           nucleic_acid_type,
                                                                           circular)
+
+    def __repr__(self):
+        return (f"DoubleStrandNucleicAcidSequence(id='{self.id}', "
+                f"forward_sequence='{self.forward_sequence}', "
+                f"reverse_sequence='{self.reverse_sequence}', "
+                f"reverse_sequence_start='{self.reverse_sequence_start}', "
+                f"nucleic_acid_type='{self.nucleic_acid_type}', "
+                f"circular={self.circular}, "
+                f"note='{self.note}')")
 
     @property
     def id(self):

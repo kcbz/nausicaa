@@ -7,10 +7,6 @@ class BaseModification:
       "6-mA": "A",
   }
 
-  def __repr__(self):
-    return (f"BaseModification(position={self.position}, base='{self.base}', "
-            f"modification_type='{self.modification_type}')")
-
   def __init__(self, parent_nucleic_acid_sequence, position,
                modification_type):
     self.validate_base_modification(parent_nucleic_acid_sequence, position,
@@ -20,6 +16,10 @@ class BaseModification:
     self._position = position
     self._base = parent_nucleic_acid_sequence.sequence[position]
     self._modification_type = modification_type
+
+  def __repr__(self):
+    return (f"BaseModification(position={self.position}, base='{self.base}', "
+            f"modification_type='{self.modification_type}')")
 
   @property
   def parent_nucleic_acid_sequence_id(self):
