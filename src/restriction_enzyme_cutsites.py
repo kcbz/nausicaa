@@ -21,8 +21,8 @@ class RestrictionEnzymeSite:
 
         self._parent_nucleic_acid_sequence_id = parent_nucleic_acid_sequence.id
         self.restriction_enzyme = restriction_enzyme
-        self.start = 0
-        self.end = 0
+        self.start = ...
+        self.end = ...
         # self.cut_position = cut_position
 
     def __repr__(self):
