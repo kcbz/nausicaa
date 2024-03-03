@@ -19,7 +19,6 @@ class RestrictionEnzymeSite:
     def __init__(self, parent_nucleic_acid_sequence, restriction_enzyme):
         enzyme_data = self.validate_restriction_site(self, restriction_enzyme)
 
-
         self._parent_nucleic_acid_sequence_id = parent_nucleic_acid_sequence.id
         self.restriction_enzyme = restriction_enzyme
         self.start = ...
