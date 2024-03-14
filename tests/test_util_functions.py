@@ -17,6 +17,7 @@ def test_kmer_trimming_search():
     assert rev_search_index_start == expected_rev_search_index_start
     assert rev_search_index_end == expected_rev_search_index_end
 
+
 def test_kmer_trimming_search_overhangs():
     seq = "ATGCTTTGGCGATCGA"
     fwd_query_seq = "GGTGCCAAGTGCAGTATGCTT"

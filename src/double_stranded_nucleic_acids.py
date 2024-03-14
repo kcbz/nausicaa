@@ -1,12 +1,9 @@
-import logging
 import uuid
 from dna_features_viewer import CircularGraphicRecord, GraphicFeature, GraphicRecord
 
 from src.nucleic_acids import NucleicAcidSequence
 from src.single_stranded_nucleic_acids import SingleStrandNucleicAcidSequence
 from src.util_classes import NucleicAcidTypes, StrandDirections, Colors
-
-logging.basicConfig(level=logging.INFO)
 
 
 class DoubleStrandNucleicAcidSequence(NucleicAcidSequence):
@@ -212,7 +209,7 @@ class DoubleStrandNucleicAcidSequence(NucleicAcidSequence):
     def set_circular(self):
         with self._forward_sequence._unlocked(), self._reverse_sequence._unlocked():
             if self.circular is True:
-                logging.info("circular is already True")
+                raise Exception("circular is already True.")
             else:
                 self._validate_circular_with_sequences(
                     self.forward_sequence,
@@ -226,7 +223,7 @@ class DoubleStrandNucleicAcidSequence(NucleicAcidSequence):
     def remove_circular(self):
         with self._forward_sequence._unlocked(), self._reverse_sequence._unlocked():
             if self.circular is False:
-                logging.info("circular is already False")
+                raise Exception("circular is already False.")
             else:
                 self._forward_sequence.remove_circular()
                 self._reverse_sequence.remove_circular()

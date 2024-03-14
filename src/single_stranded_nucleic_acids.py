@@ -1,28 +1,29 @@
-import logging
+import re
 import uuid
 from contextlib import contextmanager
 from dna_features_viewer import CircularGraphicRecord, GraphicFeature, GraphicRecord
-from typing import Optional
+from functools import reduce
+from typing import Optional, List
 
 from src.base_modifications import BaseModification
 from src.nucleic_acids import NucleicAcidSequence, reverse_sequence, complement_sequence
+from src.restriction_enzyme_cutsites import restriction_enzyme_types, RestrictionEnzymeCutSite
 from src.sequence_annotations import SequenceAnnotation
 from src.util_classes import IUPACCodes, NucleicAcidTypes, StrandDirections, Colors
-
-logging.basicConfig(level=logging.INFO)
 
 
 class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
 
     def __init__(
         self,
-        sequence,
-        nucleic_acid_type=NucleicAcidTypes.DNA.value,
-        circular=False,
-        strand_direction=StrandDirections.FWD_STRAND.value,
-        note="",
-        annotations=None,
-        base_modifications=None,
+        sequence: str,
+        nucleic_acid_type: Optional[str] = NucleicAcidTypes.DNA.value,
+        circular: Optional[bool] = False,
+        strand_direction: Optional[str] = StrandDirections.FWD_STRAND.value,
+        note: Optional[str] = "",
+        annotations: Optional[List[dict]] = None,
+        base_modifications: Optional[List[dict]] = None,
+        with_cut_sites: Optional[bool] = True,
     ):
         self._validate_sequence(sequence.upper())
         self._validate_nucleic_acid_type_with_sequence(nucleic_acid_type, sequence)
@@ -37,11 +38,14 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
         self.note = note
         self._annotations = {}
         self._base_modifications = {}
+        self._cut_sites = {}
 
         if annotations:
             self.add_annotations(annotations)
         if base_modifications:
             self.add_base_modifications(base_modifications)
+        if with_cut_sites:
+            self.add_all_cut_sites()
 
     def __repr__(self):
         return (f"SingleStrandNucleicAcidSequence(id='{self.id}', "
@@ -52,38 +56,39 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
                 f"strand_direction='{self.strand_direction}', "
                 f"annotations={self.annotations}, "
                 f"base_modifications={self.base_modifications}, "
+                f"cut_sites={self.cut_sites}, "
                 f"note='{self.note}')")
 
     @property
-    def id(self):
+    def id(self) -> str:
         return self._id
 
     @property
-    def is_part_of_dsDNA(self):
+    def is_part_of_dsDNA(self) -> bool:
         return self._is_part_of_dsDNA
 
     @property
-    def sequence(self):
+    def sequence(self) -> str:
         return self._sequence
 
     @property
-    def nucleic_acid_type(self):
+    def nucleic_acid_type(self) -> str:
         return self._nucleic_acid_type
 
     @property
-    def circular(self):
+    def circular(self) -> bool:
         return self._circular
 
     @property
-    def strand_direction(self):
+    def strand_direction(self) -> str:
         return self._strand_direction
 
     @property
-    def note(self):
+    def note(self) -> str:
         return self._note
 
     @note.setter
-    def note(self, value):
+    def note(self, value: str) -> None:
         self._validate_note(value)
         self._note = value
 
@@ -95,6 +100,10 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
     def base_modifications(self):
         return self._base_modifications.copy()
 
+    @property
+    def cut_sites(self):
+        return self._cut_sites.copy()
+
     @contextmanager
     def _unlocked(self):
         original_state = self._is_part_of_dsDNA
@@ -104,7 +113,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
         finally:
             self._is_part_of_dsDNA = original_state
 
-    def _validate_sequence(self, sequence):
+    def _validate_sequence(self, sequence: str) -> None:
         if len(sequence) == 0:
             raise ValueError("Cannot make sequence from an empty string.")
         if not all(nuc in IUPACCodes.list_names() for nuc in sequence.upper()):
@@ -112,7 +121,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
                 f"Cannot make sequence, invalid nucleotide found in sequence: {sequence}"
             )
 
-    def _validate_nucleic_acid_type_with_sequence(self, nucleic_acid_type, sequence):
+    def _validate_nucleic_acid_type_with_sequence(self, nucleic_acid_type: str, sequence: str) -> None:
         if nucleic_acid_type == NucleicAcidTypes.DNA.value and "U" in sequence:
             raise ValueError(
                 f"Cannot be nucleic acid type {NucleicAcidTypes.DNA.value} "
@@ -122,17 +131,17 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
                 f"Cannot be nucleic acid type {NucleicAcidTypes.RNA.value} "
                 "when T in sequence.")
 
-    def _validate_strand_direction(self, strand_direction):
+    def _validate_strand_direction(self, strand_direction: str) -> None:
         if strand_direction not in StrandDirections.list_values():
             raise ValueError(
                 f"Invalid strand direction: {strand_direction}. "
                 f"Options are {StrandDirections.list_values()}")
 
-    def _validate_note(self, note):
+    def _validate_note(self, note: str) -> None:
         if not isinstance(note, str):
             raise TypeError("Note must be a string.")
 
-    def _validate_annotations(self, annot_list):
+    def _validate_annotations(self, annot_list: List[dict]) -> None:
         annot_names_set = set()
         for annot in annot_list:
             name = annot["name"]
@@ -146,7 +155,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
                     f"Cannot add annotation {name}, annotation with the same name "
                     " already exists.")
 
-    def _validate_base_modifications(self, base_mod_list):
+    def _validate_base_modifications(self, base_mod_list: List[dict]) -> None:
         base_mod_pos_set = set()
         for base_mod in base_mod_list:
             pos = base_mod["position"]
@@ -160,7 +169,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
                     "Cannot add base modification, base modification already exists at "
                     f"position {pos}.")
 
-    def add_annotations(self, annot_list):
+    def add_annotations(self, annot_list: List[dict]) -> None:
         self._validate_annotations(annot_list)
         for annot in annot_list:
             name = annot["name"]
@@ -170,7 +179,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
             new_annot = SequenceAnnotation(self, name, start, end, note)
             self._annotations[name] = new_annot
 
-    def edit_annotation(self, annot_name, **kwargs):
+    def edit_annotation(self, annot_name: str, **kwargs) -> None:
         if annot_name not in self.annotations:
             raise KeyError(f"Annotation with name {annot_name} does not exist.")
         current_annot = self.annotations[annot_name]
@@ -189,18 +198,18 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
            del self._annotations[annot_name]
         self._annotations[new_name] = updated_annot
 
-    def remove_annotations(self, annot_names):
-        for annot_name in annot_names:
+    def remove_annotations(self, annot_names_list: List[str]) -> None:
+        for annot_name in annot_names_list:
             if annot_name in self.annotations:
                 del self._annotations[annot_name]
             else:
                 raise KeyError(f"Annotation with name {annot_name} does not exist.")
 
-    def remove_all_annotations(self):
+    def remove_all_annotations(self) -> None:
         annot_names = list(self.annotations.keys())
         self.remove_annotations(annot_names)
 
-    def add_base_modifications(self, base_mod_list):
+    def add_base_modifications(self, base_mod_list: List[dict]) -> None:
         self._validate_base_modifications(base_mod_list)
         for base_mod in base_mod_list:
             pos = base_mod["position"]
@@ -208,7 +217,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
             new_mod = BaseModification(self, pos, mod_type)
             self._base_modifications[pos] = new_mod
 
-    def edit_base_modification(self, base_mod_pos, **kwargs):
+    def edit_base_modification(self, base_mod_pos: int, **kwargs) -> None:
         if base_mod_pos not in self.base_modifications:
             raise KeyError(f"Base modification with position {base_mod_pos} does not exist.")
         current_base_mod = self.base_modifications[base_mod_pos]
@@ -229,18 +238,44 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
             del self._base_modifications[base_mod_pos]
         self._base_modifications[new_pos] = updated_base_mod
 
-    def remove_base_modifications(self, base_mod_pos_list):
+    def remove_base_modifications(self, base_mod_pos_list: List[int]) -> None:
         for base_mod_pos in base_mod_pos_list:
             if base_mod_pos in self.base_modifications:
                 del self._base_modifications[base_mod_pos]
             else:
                 raise KeyError(f"Base modification with position {base_mod_pos} does not exist.")
 
-    def remove_all_base_modifications(self):
+    def remove_all_base_modifications(self) -> None:
         base_mod_pos_list = list(self.base_modifications.keys())
         self.remove_base_modifications(base_mod_pos_list)
 
-    def copy(self):
+    def add_all_cut_sites(self) -> None:
+        for restriction_enzyme, data in restriction_enzyme_types.items():
+            occurrences = re.finditer(data["recognition_sequence"], self.sequence)
+            res_starts = reduce(lambda x, y: x + [y.start()], occurrences, [])
+            for start in res_starts:
+                base_mod = False
+                if self.base_modifications:
+                    for base_modification in self.base_modifications:
+                        if start <= base_modification.position <= start + len(data["recognition_sequence"]):
+                            base_mod = True
+                if base_mod:
+                    continue
+                new_cut_site = RestrictionEnzymeCutSite(self, start, restriction_enzyme)
+                self._cut_sites[start] = new_cut_site
+
+    def remove_cut_sites(self, cut_site_start_list: List[int]) -> None:
+        for cut_site_start in cut_site_start_list:
+            if cut_site_start in self.cut_sites:
+                del self._cut_sites[cut_site_start]
+            else:
+                raise KeyError(f"Cut site with start position {cut_site_start} does not exist.")
+
+    def remove_all_cut_sites(self) -> None:
+        cut_site_starts = list(self.cut_sites.keys())
+        self.remove_annotations(cut_site_starts)
+
+    def copy(self) -> "SingleStrandNucleicAcidSequence":
         new_ss_seq = SingleStrandNucleicAcidSequence(
             sequence=self.sequence,
             nucleic_acid_type=self.nucleic_acid_type,
@@ -252,7 +287,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
         )
         return new_ss_seq
 
-    def change_strand_direction(self):
+    def change_strand_direction(self) -> None:
         if self._is_part_of_dsDNA:
             raise Exception("Operation not allowed directly on ssDNA part of dsDNA. "
                             "Use dsDNA methods.")
@@ -261,7 +296,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
         else:
             self._strand_direction = StrandDirections.FWD_STRAND.value
 
-    def reverse(self, change_strand_dir=False):
+    def reverse(self, change_strand_dir=False) -> None:
         if self._is_part_of_dsDNA:
             raise Exception("Operation not allowed directly on ssDNA part of dsDNA. "
                             "Use dsDNA methods.")
@@ -271,7 +306,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
         self.remove_all_base_modifications()
         self._sequence = reverse_sequence(self.sequence)
 
-    def complement(self, change_strand_dir=False):
+    def complement(self, change_strand_dir=False) -> None:
         if self._is_part_of_dsDNA:
             raise Exception("Operation not allowed directly on ssDNA part of dsDNA. "
                             "Use dsDNA methods.")
@@ -285,21 +320,21 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
         self.reverse(change_strand_dir=change_strand_dir)
         self.complement(change_strand_dir=change_strand_dir)
 
-    def set_circular(self):
+    def set_circular(self) -> None:
         if self._is_part_of_dsDNA:
             raise Exception("Operation not allowed directly on ssDNA part of dsDNA. "
                             "Use dsDNA methods.")
         if self.circular is True:
-            logging.info("circular is already True")
+            raise Exception("circular is already True.")
         else:
             self._circular = True
 
-    def remove_circular(self):
+    def remove_circular(self) -> None:
         if self._is_part_of_dsDNA:
             raise Exception("Operation not allowed directly on ssDNA part of dsDNA. "
                             "Use dsDNA methods.")
         if self.circular is False:
-            logging.info("circular is already False")
+            raise Exception("circular is already False.")
         else:
             self._circular = False
         annot_names_to_remove = [
@@ -308,7 +343,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
         ]
         self.remove_annotations(annot_names_to_remove)
 
-    def view(self):
+    def view(self) -> None:
         strand = +1
         if self.strand_direction == StrandDirections.REV_STRAND.value:
             strand = -1

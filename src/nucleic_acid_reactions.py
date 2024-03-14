@@ -1,4 +1,3 @@
-import logging
 import uuid
 
 from src.nucleic_acids import reverse_sequence, complement_sequence
@@ -6,8 +5,6 @@ from src.double_stranded_nucleic_acids import DoubleStrandNucleicAcidSequence
 from src.single_stranded_nucleic_acids import SingleStrandNucleicAcidSequence, transfer_annotations
 from src.util_classes import NucleicAcidTypes, StrandDirections
 from src.util_functions import kmer_trimming_search
-
-logging.basicConfig(level=logging.INFO)
 
 
 class NucleicAcidReaction:
