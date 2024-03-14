@@ -23,7 +23,6 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
         note: Optional[str] = "",
         annotations: Optional[List[dict]] = None,
         base_modifications: Optional[List[dict]] = None,
-        with_cut_sites: Optional[bool] = True,
     ):
         self._validate_sequence(sequence.upper())
         self._validate_nucleic_acid_type_with_sequence(nucleic_acid_type, sequence)
@@ -44,8 +43,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
             self.add_annotations(annotations)
         if base_modifications:
             self.add_base_modifications(base_modifications)
-        if with_cut_sites:
-            self.add_all_cut_sites()
+        self.add_all_cut_sites()
 
     def __repr__(self):
         return (f"SingleStrandNucleicAcidSequence(id='{self.id}', "
@@ -213,19 +211,22 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
         self._validate_base_modifications(base_mod_list)
         for base_mod in base_mod_list:
             pos = base_mod["position"]
-            mod_type = base_mod["modification_type"]
-            new_mod = BaseModification(self, pos, mod_type)
-            self._base_modifications[pos] = new_mod
+            base_mod_type = base_mod["modification_type"]
+            new_base_mod = BaseModification(self, pos, base_mod_type)
+            self._base_modifications[pos] = new_base_mod
+            if self.cut_sites:
+                for cut_site_data in self.cut_sites.values():
+                    if cut_site_data.start <= new_base_mod.position <= cut_site_data.end:
+                        self.remove_cut_sites([cut_site_data.start])
 
     def edit_base_modification(self, base_mod_pos: int, **kwargs) -> None:
         if base_mod_pos not in self.base_modifications:
             raise KeyError(f"Base modification with position {base_mod_pos} does not exist.")
-        current_base_mod = self.base_modifications[base_mod_pos]
-        new_pos = kwargs.get("position", current_base_mod.position)
-        new_mod_type = kwargs.get("modification_type", current_base_mod._modification_type)
+        orig_base_mod = self.base_modifications[base_mod_pos]
+        new_pos = kwargs.get("position", orig_base_mod.position)
+        new_base_mod_type = kwargs.get("modification_type", orig_base_mod._modification_type)
         if ("position" in kwargs) and (new_pos != base_mod_pos) and (new_pos in self.base_modifications):
-            raise ValueError(
-                f"Cannot change base modification position to {new_pos} as it already exists.")
+            raise ValueError(f"Cannot change base modification position to {new_pos} as it already exists.")
         valid_keys = ["position", "modification_type"]
         for key in kwargs:
             if key == "base":
@@ -233,34 +234,50 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
                                      f"Must use {valid_keys}.")
             elif key not in valid_keys:
                 raise AttributeError(f"Base modification at {base_mod_pos} has no attribute {key}.")
-        updated_base_mod = BaseModification(self, new_pos, new_mod_type)
+        updated_base_mod = BaseModification(self, new_pos, new_base_mod_type)
         if new_pos != base_mod_pos:
             del self._base_modifications[base_mod_pos]
         self._base_modifications[new_pos] = updated_base_mod
+        if self.cut_sites:
+            for cut_site_data in self.cut_sites.values():
+                if cut_site_data.start <= updated_base_mod.position <= cut_site_data.end:
+                    self.remove_cut_sites([cut_site_data.start])
+        pos = orig_base_mod.position
+        self.add_all_cut_sites(search_positions=(pos - 5, pos + 5))
 
     def remove_base_modifications(self, base_mod_pos_list: List[int]) -> None:
         for base_mod_pos in base_mod_pos_list:
             if base_mod_pos in self.base_modifications:
+                pos = self.base_modifications[base_mod_pos].position
                 del self._base_modifications[base_mod_pos]
+                self.add_all_cut_sites(search_positions=(pos - 5, pos + 5))
             else:
                 raise KeyError(f"Base modification with position {base_mod_pos} does not exist.")
 
     def remove_all_base_modifications(self) -> None:
         base_mod_pos_list = list(self.base_modifications.keys())
         self.remove_base_modifications(base_mod_pos_list)
+        self.add_all_cut_sites()
 
-    def add_all_cut_sites(self) -> None:
+    def add_all_cut_sites(self, search_positions: Optional[tuple[int, int]] = None) -> None:
+        search_sequence = self.sequence
+        if search_positions:
+            search_sequence = search_sequence[search_positions[0]:search_positions[1]]
         for restriction_enzyme, data in restriction_enzyme_types.items():
-            occurrences = re.finditer(data["recognition_sequence"], self.sequence)
+            occurrences = re.finditer(data["recognition_sequence"], search_sequence)
             res_starts = reduce(lambda x, y: x + [y.start()], occurrences, [])
             for start in res_starts:
+                if search_positions:
+                    start += search_positions[0]
                 base_mod = False
                 if self.base_modifications:
-                    for base_modification in self.base_modifications:
-                        if start <= base_modification.position <= start + len(data["recognition_sequence"]):
+                    for base_modification_data in self.base_modifications.values():
+                        if start <= base_modification_data.position <= start + len(data["recognition_sequence"]):
                             base_mod = True
                 if base_mod:
                     continue
+                if start in self.cut_sites:
+                    raise ValueError(f"Cannot add cut site, a cut site at position {start} already exists.")
                 new_cut_site = RestrictionEnzymeCutSite(self, start, restriction_enzyme)
                 self._cut_sites[start] = new_cut_site
 
@@ -270,10 +287,6 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
                 del self._cut_sites[cut_site_start]
             else:
                 raise KeyError(f"Cut site with start position {cut_site_start} does not exist.")
-
-    def remove_all_cut_sites(self) -> None:
-        cut_site_starts = list(self.cut_sites.keys())
-        self.remove_annotations(cut_site_starts)
 
     def copy(self) -> "SingleStrandNucleicAcidSequence":
         new_ss_seq = SingleStrandNucleicAcidSequence(

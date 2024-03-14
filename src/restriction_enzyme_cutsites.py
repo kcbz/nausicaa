@@ -15,6 +15,7 @@ restriction_enzyme_types = {
     "SphI": {"recognition_sequence": "GCATGC", "cut_position": 5}  # Cuts after the G
 }
 
+
 class RestrictionEnzymeCutSite:
 
     def __init__(self, parent_ss_nucleic_acid, start, restriction_enzyme_type):
@@ -68,11 +69,6 @@ class RestrictionEnzymeCutSite:
         cut_site_data = restriction_enzyme_types[restriction_enzyme_type]
         cut_site_sequence = cut_site_data["recognition_sequence"]
         found_cut_site_sequence = parent_ss_nucleic_acid.sequence[start:start + len(cut_site_sequence)]
-
-        print(start)
-        print(start + len(cut_site_sequence))
-        print(found_cut_site_sequence)
-
         if found_cut_site_sequence != cut_site_sequence:
             raise TypeError(f"Cannot add restriction site, sequence for {restriction_enzyme_type}"
                             f"is {cut_site_sequence}, found {found_cut_site_sequence}.")

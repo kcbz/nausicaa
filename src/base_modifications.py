@@ -6,6 +6,7 @@ base_modification_types = {
     "6-mA": "A",
 }
 
+
 class BaseModification:
 
     def __init__(self, parent_ss_nucleic_acid, position, modification_type):

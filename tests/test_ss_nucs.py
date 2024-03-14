@@ -51,11 +51,35 @@ def test_make_ss_dna_with_base_modifications():
     assert dna_seq.base_modifications[0].modification_type == "6-mA"
 
 
-def test_make_ss_dna_with_cutsites():
-    dna_seq = SingleStrandNucleicAcidSequence(sequence="ATGCGGAATTCTAA", nucleic_acid_type="DNA", circular=False, strand_direction="forward")
+def test_make_ss_dna_with_cutsites_and_base_mods():
+    dna_seq = SingleStrandNucleicAcidSequence(sequence="ATGCGGAATTCTAGCATGCAAATT", nucleic_acid_type="DNA", circular=False, strand_direction="forward",
+                                              base_modifications=[{"position": 10, "modification_type": "5-mC"},
+                                                                  {"position": 0, "modification_type": "6-mA"}])
+    assert dna_seq.cut_sites[13].start == 13
+    assert dna_seq.cut_sites[13].end == 18
+    assert dna_seq.cut_sites[13].cut_position == 18
+    assert dna_seq.cut_sites[13].recognition_sequence == "GCATGC"
+    assert dna_seq.cut_sites[13].restriction_enzyme == "SphI"
+    assert dna_seq.base_modifications[10].position == 10
+    assert dna_seq.base_modifications[10].modification_type == "5-mC"
+    assert dna_seq.base_modifications[0].position == 0
+    assert dna_seq.base_modifications[0].modification_type == "6-mA"
 
-    print(dna_seq)
 
+def test_make_ss_dna_with_cutsites_then_add_edit_and_remove_base_mods():
+    dna_seq = SingleStrandNucleicAcidSequence(sequence="ATGCGGAATTCTAGCATGCAAATT", nucleic_acid_type="DNA", circular=False, strand_direction="forward")
+
+    dna_seq.add_base_modifications(
+        [{"position": 10, "modification_type": "5-mC"},
+         {"position": 0, "modification_type": "6-mA"}])
+    dna_seq.edit_base_modification(0, position=15)
+    dna_seq.remove_base_modifications([10])
+
+    assert dna_seq.cut_sites[5].start == 5
+    assert dna_seq.cut_sites[5].end == 10
+    assert dna_seq.cut_sites[5].cut_position == 6
+    assert dna_seq.cut_sites[5].recognition_sequence == "GAATTC"
+    assert dna_seq.cut_sites[5].restriction_enzyme == "EcoRI"
 
 
 
