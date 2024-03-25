@@ -1,3 +1,7 @@
+from src.nucleic_acids import complement_sequence
+from src.util_classes import StrandDirections
+
+
 restriction_enzyme_types = {
     "EcoRI": {"recognition_sequence": "GAATTC", "cut_position": 1},  # Cuts between G and A
     "HindIII": {"recognition_sequence": "AAGCTT", "cut_position": 1},  # Cuts between A and A
@@ -24,9 +28,13 @@ class RestrictionEnzymeCutSite:
         self._parent_nucleic_acid_sequence_id = parent_ss_nucleic_acid.id
         self._start = start
         self._end = start + len(cut_site_data["recognition_sequence"]) - 1
-        self._cut_position = start + cut_site_data["cut_position"]
         self._recognition_sequence = cut_site_data["recognition_sequence"]
         self._restriction_enzyme = restriction_enzyme_type
+
+        if parent_ss_nucleic_acid.strand_direction == StrandDirections.FWD_STRAND.value:
+            self._cut_position = self._start + cut_site_data["cut_position"] - 1
+        else:
+            self._cut_position = self._end - cut_site_data["cut_position"]
 
     def __repr__(self):
         return (f"RestrictionEnzymeCutSite(start='{self.start}, end='{self.end}', "
@@ -67,9 +75,11 @@ class RestrictionEnzymeCutSite:
             raise ValueError("Cannot add restriction site, invalid restriction site type. "
                              f"Options are {restriction_enzyme_types.keys()}")
         cut_site_data = restriction_enzyme_types[restriction_enzyme_type]
-        cut_site_sequence = cut_site_data["recognition_sequence"]
-        found_cut_site_sequence = parent_ss_nucleic_acid.sequence[start:start + len(cut_site_sequence)]
-        if found_cut_site_sequence != cut_site_sequence:
+        exp_cut_site_sequence = cut_site_data["recognition_sequence"]
+        found_cut_site_sequence = parent_ss_nucleic_acid.sequence[start:start + len(exp_cut_site_sequence)]
+        if parent_ss_nucleic_acid.strand_direction == StrandDirections.REV_STRAND.value:
+            exp_cut_site_sequence = complement_sequence(exp_cut_site_sequence)
+        if found_cut_site_sequence != exp_cut_site_sequence:
             raise TypeError(f"Cannot add restriction site, sequence for {restriction_enzyme_type}"
-                            f"is {cut_site_sequence}, found {found_cut_site_sequence}.")
+                            f"is {exp_cut_site_sequence}, found {found_cut_site_sequence}.")
         return cut_site_data

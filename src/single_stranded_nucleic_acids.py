@@ -43,7 +43,7 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
             self.add_annotations(annotations)
         if base_modifications:
             self.add_base_modifications(base_modifications)
-        self.add_all_cut_sites()
+        self._add_all_cut_sites()
 
     def __repr__(self):
         return (f"SingleStrandNucleicAcidSequence(id='{self.id}', "
@@ -167,6 +167,12 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
                     "Cannot add base modification, base modification already exists at "
                     f"position {pos}.")
 
+    def _set_is_part_of_dsDNA_true(self) -> True:
+        self._is_part_of_dsDNA = True
+
+    def _set_is_part_of_dsDNA_false(self) -> True:
+        self._is_part_of_dsDNA = False
+
     def add_annotations(self, annot_list: List[dict]) -> None:
         self._validate_annotations(annot_list)
         for annot in annot_list:
@@ -210,20 +216,20 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
     def add_base_modifications(self, base_mod_list: List[dict]) -> None:
         self._validate_base_modifications(base_mod_list)
         for base_mod in base_mod_list:
-            pos = base_mod["position"]
+            base_mod_pos = base_mod["position"]
             base_mod_type = base_mod["modification_type"]
-            new_base_mod = BaseModification(self, pos, base_mod_type)
-            self._base_modifications[pos] = new_base_mod
+            new_base_mod = BaseModification(self, base_mod_pos, base_mod_type)
+            self._base_modifications[base_mod_pos] = new_base_mod
             if self.cut_sites:
                 for cut_site_data in self.cut_sites.values():
-                    if cut_site_data.start <= new_base_mod.position <= cut_site_data.end:
-                        self.remove_cut_sites([cut_site_data.start])
+                    if cut_site_data.start <= base_mod_pos <= cut_site_data.end:
+                        self._remove_cut_sites([cut_site_data.start])
 
     def edit_base_modification(self, base_mod_pos: int, **kwargs) -> None:
         if base_mod_pos not in self.base_modifications:
             raise KeyError(f"Base modification with position {base_mod_pos} does not exist.")
         orig_base_mod = self.base_modifications[base_mod_pos]
-        new_pos = kwargs.get("position", orig_base_mod.position)
+        new_pos = kwargs.get("position", base_mod_pos)
         new_base_mod_type = kwargs.get("modification_type", orig_base_mod._modification_type)
         if ("position" in kwargs) and (new_pos != base_mod_pos) and (new_pos in self.base_modifications):
             raise ValueError(f"Cannot change base modification position to {new_pos} as it already exists.")
@@ -236,39 +242,45 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
                 raise AttributeError(f"Base modification at {base_mod_pos} has no attribute {key}.")
         updated_base_mod = BaseModification(self, new_pos, new_base_mod_type)
         if new_pos != base_mod_pos:
+            if self.cut_sites:
+                for cut_site_data in self.cut_sites.values():
+                    if cut_site_data.start <= new_pos <= cut_site_data.end:
+                        self._remove_cut_sites([cut_site_data.start])
             del self._base_modifications[base_mod_pos]
+            self._add_all_cut_sites(search_positions=(base_mod_pos - 5, base_mod_pos + 5))
         self._base_modifications[new_pos] = updated_base_mod
-        if self.cut_sites:
-            for cut_site_data in self.cut_sites.values():
-                if cut_site_data.start <= updated_base_mod.position <= cut_site_data.end:
-                    self.remove_cut_sites([cut_site_data.start])
-        pos = orig_base_mod.position
-        self.add_all_cut_sites(search_positions=(pos - 5, pos + 5))
 
     def remove_base_modifications(self, base_mod_pos_list: List[int]) -> None:
         for base_mod_pos in base_mod_pos_list:
             if base_mod_pos in self.base_modifications:
-                pos = self.base_modifications[base_mod_pos].position
                 del self._base_modifications[base_mod_pos]
-                self.add_all_cut_sites(search_positions=(pos - 5, pos + 5))
+                self._add_all_cut_sites(search_positions=(base_mod_pos - 5, base_mod_pos + 5))
             else:
                 raise KeyError(f"Base modification with position {base_mod_pos} does not exist.")
 
     def remove_all_base_modifications(self) -> None:
         base_mod_pos_list = list(self.base_modifications.keys())
         self.remove_base_modifications(base_mod_pos_list)
-        self.add_all_cut_sites()
+        self._add_all_cut_sites()
 
-    def add_all_cut_sites(self, search_positions: Optional[tuple[int, int]] = None) -> None:
+    def _add_all_cut_sites(self, search_positions: Optional[tuple[int, int]] = None) -> None:
         search_sequence = self.sequence
         if search_positions:
             search_sequence = search_sequence[search_positions[0]:search_positions[1]]
         for restriction_enzyme, data in restriction_enzyme_types.items():
-            occurrences = re.finditer(data["recognition_sequence"], search_sequence)
+            if self.strand_direction == StrandDirections.FWD_STRAND.value:
+                occurrences = re.finditer(data["recognition_sequence"], search_sequence)
+            else:
+                comp_recognition_seq = complement_sequence(data["recognition_sequence"])
+                occurrences = re.finditer(comp_recognition_seq, search_sequence)
             res_starts = reduce(lambda x, y: x + [y.start()], occurrences, [])
             for start in res_starts:
+                # If we are starting somewhere within the sequence,
+                # must index appropriately by the distance within the sequence
                 if search_positions:
                     start += search_positions[0]
+                # If a base modification is present within the cut site sequence,
+                # must not add cut site
                 base_mod = False
                 if self.base_modifications:
                     for base_modification_data in self.base_modifications.values():
@@ -276,17 +288,23 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
                             base_mod = True
                 if base_mod:
                     continue
+                # If a cut site is already present at index,
+                # must not add cut site
                 if start in self.cut_sites:
-                    raise ValueError(f"Cannot add cut site, a cut site at position {start} already exists.")
+                    continue
                 new_cut_site = RestrictionEnzymeCutSite(self, start, restriction_enzyme)
                 self._cut_sites[start] = new_cut_site
 
-    def remove_cut_sites(self, cut_site_start_list: List[int]) -> None:
+    def _remove_cut_sites(self, cut_site_start_list: List[int]) -> None:
         for cut_site_start in cut_site_start_list:
             if cut_site_start in self.cut_sites:
                 del self._cut_sites[cut_site_start]
             else:
                 raise KeyError(f"Cut site with start position {cut_site_start} does not exist.")
+
+    def _remove_all_cut_sites(self) -> None:
+        cut_site_pos_list = list(self.cut_sites.keys())
+        self._remove_cut_sites(cut_site_pos_list)
 
     def copy(self) -> "SingleStrandNucleicAcidSequence":
         new_ss_seq = SingleStrandNucleicAcidSequence(
@@ -305,29 +323,41 @@ class SingleStrandNucleicAcidSequence(NucleicAcidSequence):
             raise Exception("Operation not allowed directly on ssDNA part of dsDNA. "
                             "Use dsDNA methods.")
         if self.strand_direction == StrandDirections.FWD_STRAND.value:
-                self._strand_direction = StrandDirections.REV_STRAND.value
+            self._strand_direction = StrandDirections.REV_STRAND.value
+            self._remove_all_cut_sites()
+            self._add_all_cut_sites()
         else:
             self._strand_direction = StrandDirections.FWD_STRAND.value
+            self._remove_all_cut_sites()
+            self._add_all_cut_sites()
 
     def reverse(self, change_strand_dir=False) -> None:
         if self._is_part_of_dsDNA:
             raise Exception("Operation not allowed directly on ssDNA part of dsDNA. "
                             "Use dsDNA methods.")
+        self._sequence = reverse_sequence(self.sequence)
         if change_strand_dir:
             self.change_strand_direction()
-        self.remove_all_annotations()
-        self.remove_all_base_modifications()
-        self._sequence = reverse_sequence(self.sequence)
+        if self.annotations:
+            self.remove_all_annotations()
+        if self.base_modifications:
+            self.remove_all_base_modifications()
+        self._remove_all_cut_sites()
+        self._add_all_cut_sites()
 
     def complement(self, change_strand_dir=False) -> None:
         if self._is_part_of_dsDNA:
             raise Exception("Operation not allowed directly on ssDNA part of dsDNA. "
                             "Use dsDNA methods.")
+        self._sequence = complement_sequence(self._sequence, nuc_type=self.nucleic_acid_type)
         if change_strand_dir:
             self.change_strand_direction()
-        self.remove_all_annotations()
-        self.remove_all_base_modifications()
-        self._sequence = complement_sequence(self._sequence, nuc_type=self.nucleic_acid_type)
+        if self.annotations:
+            self.remove_all_annotations()
+        if self.base_modifications:
+            self.remove_all_base_modifications()
+        self._remove_all_cut_sites()
+        self._add_all_cut_sites()
 
     def reverse_complement(self, change_strand_dir=False):
         self.reverse(change_strand_dir=change_strand_dir)

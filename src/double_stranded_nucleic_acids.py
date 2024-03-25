@@ -1,7 +1,7 @@
 import uuid
 from dna_features_viewer import CircularGraphicRecord, GraphicFeature, GraphicRecord
 
-from src.nucleic_acids import NucleicAcidSequence
+from src.nucleic_acids import NucleicAcidSequence, complement_sequence
 from src.single_stranded_nucleic_acids import SingleStrandNucleicAcidSequence
 from src.util_classes import NucleicAcidTypes, StrandDirections, Colors
 
@@ -121,8 +121,8 @@ class DoubleStrandNucleicAcidSequence(NucleicAcidSequence):
     def _validate_and_set_sequences(self, fwd_seq, rev_seq, rev_seq_start, nuc_acid_type, circ):
         fwd_seq_obj = self._create_or_validate_strand(fwd_seq, StrandDirections.FWD_STRAND.value, nuc_acid_type, circ)
         rev_seq_obj, rev_seq_start_value = self._handle_reverse_sequence(rev_seq, rev_seq_start, nuc_acid_type, circ, fwd_seq_obj)
-        fwd_seq_obj._is_part_of_dsDNA = True
-        rev_seq_obj._is_part_of_dsDNA = True
+        fwd_seq_obj._set_is_part_of_dsDNA_true
+        rev_seq_obj._set_is_part_of_dsDNA_true
         return fwd_seq_obj, rev_seq_obj, rev_seq_start_value
 
     def _handle_reverse_sequence(self, rev_seq, rev_seq_start, nuc_acid_type, circ, fwd_seq_obj):
@@ -132,8 +132,13 @@ class DoubleStrandNucleicAcidSequence(NucleicAcidSequence):
             rev_seq_obj = self._create_or_validate_strand(rev_seq, StrandDirections.REV_STRAND.value, nuc_acid_type, circ)
             rev_seq_start_value = self._validate_rev_seq_start(rev_seq_start, fwd_seq_obj, rev_seq_obj)
         else:
-            rev_seq_obj = fwd_seq_obj.copy()
-            rev_seq_obj.complement(change_strand_dir=True)
+            rev_strand_seq = complement_sequence(fwd_seq_obj.sequence)
+            rev_seq_obj = SingleStrandNucleicAcidSequence(
+                sequence=rev_strand_seq,
+                nucleic_acid_type=nuc_acid_type,
+                circular=circ,
+                strand_direction=StrandDirections.REV_STRAND.value
+            )
             rev_seq_start_value = 0
         return rev_seq_obj, rev_seq_start_value
 

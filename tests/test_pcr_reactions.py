@@ -62,8 +62,12 @@ def test_pcr_reaction_3():
         "reverse_primer": rev_primer
     })
 
+    # print("template", template_seq)
+    # print("construct", pcr_reaction.outputs["pcr_construct"])
+
     assert pcr_reaction.outputs["pcr_construct"].forward_sequence.sequence == "CGCGCGTAGTAGCCCCCGGGGGAAAAATTTTTAAAAAAAAAAAAAAAAAAAA"
     assert pcr_reaction.outputs["pcr_construct"].reverse_sequence.sequence == "GCGCGCATCATCGGGGGCCCCCTTTTTAAAAATTTTTTTTTTTTTTTTTTTT"
+
 
 def test_pcr_reaction_annotations():
     template_seq = DoubleStrandNucleicAcidSequence(
